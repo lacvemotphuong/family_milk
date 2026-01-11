@@ -38,14 +38,13 @@ export const api = {
   },
 
   // Ghi lại lịch sử quét
-  recordScan: async (uid, location) => {
+  recordScan: async (uid, location, status = "valid") => {
     await fetch(`${API_URL}/record_scan`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ uid, location }),
+      body: JSON.stringify({ uid, location, status }), // <--- Đã thêm status vào đây
     });
   },
-
   // Lấy lịch sử quét (Cho Admin)
   getHistory: async () => {
     const res = await fetch(`${API_URL}/scan_history`);

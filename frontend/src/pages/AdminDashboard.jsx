@@ -10,7 +10,8 @@ import {
   Eye,
   EyeOff,
   Users,
-  Search,
+  Search, // [MỚI] Import icon Search
+  X, // [MỚI] Import icon X để xóa tìm kiếm
   BarChart as BarIcon,
   PieChart as PieIcon,
   AlertTriangle,
@@ -36,6 +37,10 @@ const AdminDashboard = ({ onLogout }) => {
   const [history, setHistory] = useState([]);
   const [users, setUsers] = useState([]); // Mock users
   const [showHistory, setShowHistory] = useState(false);
+
+  // [MỚI] State lưu từ khóa tìm kiếm
+  const [searchTerm, setSearchTerm] = useState("");
+
   const [hiddenList, setHiddenList] = useState(
     JSON.parse(localStorage.getItem("hidden_products") || "[]")
   );
@@ -83,7 +88,16 @@ const AdminDashboard = ({ onLogout }) => {
     return { label: "An toàn", color: "success", bg: "success" };
   };
 
-  const sortedProducts = [...products].sort((a, b) => {
+  // [MỚI] Logic lọc sản phẩm theo từ khóa tìm kiếm
+  const filteredProducts = products.filter(
+    (p) =>
+      p.uid.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      p.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  // Sắp xếp trên danh sách gốc (hoặc danh sách đã lọc nếu muốn sắp xếp kết quả tìm kiếm)
+  // Ở đây mình sắp xếp trên filteredProducts để khi tìm kiếm vẫn giữ thứ tự ưu tiên hạn sử dụng
+  const sortedProducts = [...filteredProducts].sort((a, b) => {
     const daysA = getDaysRemaining(a.expiry_date);
     const daysB = getDaysRemaining(b.expiry_date);
     return daysA - daysB; // Ưu tiên hết hạn lên đầu
@@ -283,15 +297,9 @@ const AdminDashboard = ({ onLogout }) => {
           )}
           {activeTab === "products" && (
             <div className="glass-panel p-4 rounded-4 animate-in">
-              {/* [THÊM MỚI] Đặt component UpdateExcel ở đây */}
               <UpdateExcel onSuccess={loadData} />
 
               <div className="row g-4 mb-4 mt-2">
-                {/* ... Phần form thêm thủ công cũ giữ nguyên ... */}
-                <div className="col-md-5 border-end">{/* ... */}</div>
-                {/* ... */}
-              </div>
-              <div className="row g-4 mb-4">
                 <div className="col-md-5 border-end">
                   <h5 className="fw-bold mb-3 text-primary">
                     <Plus size={20} className="me-1" /> Thêm Sản Phẩm Mới
@@ -373,6 +381,29 @@ const AdminDashboard = ({ onLogout }) => {
                       <RefreshCcw size={16} />
                     </button>
                   </div>
+
+                  {/* [MỚI] Thanh Tìm Kiếm */}
+                  <div className="input-group mb-3 shadow-sm">
+                    <span className="input-group-text bg-white border-end-0 text-muted">
+                      <Search size={18} />
+                    </span>
+                    <input
+                      type="text"
+                      className="form-control border-start-0 ps-0"
+                      placeholder="Tìm kiếm theo Mã ID hoặc Tên sản phẩm..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                    {searchTerm && (
+                      <button
+                        className="btn btn-white border border-start-0"
+                        onClick={() => setSearchTerm("")}
+                      >
+                        <X size={18} className="text-muted" />
+                      </button>
+                    )}
+                  </div>
+
                   <div
                     className="table-responsive"
                     style={{ maxHeight: "500px" }}
@@ -387,43 +418,55 @@ const AdminDashboard = ({ onLogout }) => {
                         </tr>
                       </thead>
                       <tbody>
-                        {products.map((p) => (
-                          <tr
-                            key={p.uid}
-                            style={{
-                              opacity: hiddenList.includes(p.uid) ? 0.5 : 1,
-                            }}
-                          >
-                            <td>
-                              <span className="badge bg-light text-dark border">
-                                {p.uid}
-                              </span>
-                            </td>
-                            <td className="fw-bold small">{p.name}</td>
-                            <td className="text-center small">
-                              {p.scan_count || 0}
-                            </td>
-                            <td className="text-center">
-                              <button
-                                className={`btn btn-sm border-0 ${
-                                  hiddenList.includes(p.uid)
-                                    ? "text-muted"
-                                    : "text-primary"
-                                }`}
-                                onClick={() => toggleHide(p.uid)}
-                                title={
-                                  hiddenList.includes(p.uid) ? "Hiện" : "Ẩn"
-                                }
-                              >
-                                {hiddenList.includes(p.uid) ? (
-                                  <EyeOff size={16} />
-                                ) : (
-                                  <Eye size={16} />
-                                )}
-                              </button>
+                        {/* [MỚI] Sử dụng filteredProducts thay vì products để hiển thị kết quả tìm kiếm */}
+                        {filteredProducts.length > 0 ? (
+                          filteredProducts.map((p) => (
+                            <tr
+                              key={p.uid}
+                              style={{
+                                opacity: hiddenList.includes(p.uid) ? 0.5 : 1,
+                              }}
+                            >
+                              <td>
+                                <span className="badge bg-light text-dark border">
+                                  {p.uid}
+                                </span>
+                              </td>
+                              <td className="fw-bold small">{p.name}</td>
+                              <td className="text-center small">
+                                {p.scan_count || 0}
+                              </td>
+                              <td className="text-center">
+                                <button
+                                  className={`btn btn-sm border-0 ${
+                                    hiddenList.includes(p.uid)
+                                      ? "text-muted"
+                                      : "text-primary"
+                                  }`}
+                                  onClick={() => toggleHide(p.uid)}
+                                  title={
+                                    hiddenList.includes(p.uid) ? "Hiện" : "Ẩn"
+                                  }
+                                >
+                                  {hiddenList.includes(p.uid) ? (
+                                    <EyeOff size={16} />
+                                  ) : (
+                                    <Eye size={16} />
+                                  )}
+                                </button>
+                              </td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td
+                              colSpan="4"
+                              className="text-center text-muted py-3"
+                            >
+                              Không tìm thấy sản phẩm nào.
                             </td>
                           </tr>
-                        ))}
+                        )}
                       </tbody>
                     </table>
                   </div>

@@ -7,7 +7,9 @@ import {
   QrCode,
   ChevronLeft,
   ChevronRight,
-} from "lucide-react"; // [MỚI] Thêm icon điều hướng
+  Search,
+  X,
+} from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import QRScanner from "../components/QRScanner";
 import Chatbot from "../components/Chatbot";
@@ -18,10 +20,14 @@ const UserDashboard = ({ onBack }) => {
   const [products, setProducts] = useState([]);
   const [detail, setDetail] = useState(null);
   const [showScanner, setShowScanner] = useState(false);
-  const [checkUid, setCheckUid] = useState("");
+  const [checkInput, setCheckInput] = useState(""); // Đổi tên từ checkUid thành checkInput cho đúng ý nghĩa
 
-  // State cho bộ lọc
+  // State cho bộ lọc và phân trang
   const [selectedCategory, setSelectedCategory] = useState("Tất cả");
+  const [listSearchTerm, setListSearchTerm] = useState(""); // [MỚI] Tìm kiếm trong danh sách
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
   const CATEGORIES = [
     "Tất cả",
     "Sữa Tươi",
@@ -30,10 +36,6 @@ const UserDashboard = ({ onBack }) => {
     "Sữa Hạt",
     "Sữa Chua",
   ];
-
-  // [MỚI] State cho phân trang
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10; // Giới hạn 10 sản phẩm mỗi trang
 
   const hiddenList = JSON.parse(
     localStorage.getItem("hidden_products") || "[]"
@@ -47,24 +49,26 @@ const UserDashboard = ({ onBack }) => {
       );
   }, []);
 
-  // [MỚI] Reset về trang 1 khi người dùng đổi danh mục
+  // Reset về trang 1 khi đổi danh mục hoặc tìm kiếm
   useEffect(() => {
     setCurrentPage(1);
-  }, [selectedCategory]);
+  }, [selectedCategory, listSearchTerm]);
 
-  const verify = async (uid) => {
-    const target = uid || checkUid;
-    if (!target) return alert("Nhập mã!");
+  const verify = async (input) => {
+    const target = input || checkInput;
+    if (!target) return alert("Vui lòng nhập mã hoặc tên sản phẩm!");
+
+    // Nếu nhập mã ID thì check ẩn, nhập tên thì bỏ qua check này
     if (hiddenList.includes(target)) return alert("Sản phẩm bị ẩn!");
 
     try {
       const data = await api.verifyProduct(target);
       if (data.is_valid) {
-        setDetail({ ...data, uid: target });
+        setDetail({ ...data, uid: data.uid }); // Đảm bảo dùng UID trả về từ server
         setView("detail");
-        api.recordScan(target, "Web Client", "valid");
+        api.recordScan(data.uid, "Web Client", "valid");
       } else {
-        alert("Không tìm thấy!");
+        alert("Không tìm thấy sản phẩm nào khớp với thông tin này!");
         api.recordScan(target, "Web Client", "invalid");
       }
     } catch (e) {
@@ -72,30 +76,29 @@ const UserDashboard = ({ onBack }) => {
     }
   };
 
-  // [MỚI] Logic tính toán phân trang
-  // 1. Lọc sản phẩm theo danh mục trước
-  const filteredProducts = products.filter(
-    (p) => selectedCategory === "Tất cả" || p.category === selectedCategory
-  );
+  // [MỚI] Logic lọc sản phẩm: Theo Danh mục AND (Theo Tên OR Theo UID)
+  const filteredProducts = products.filter((p) => {
+    const matchCategory =
+      selectedCategory === "Tất cả" || p.category === selectedCategory;
+    const matchSearch =
+      p.name.toLowerCase().includes(listSearchTerm.toLowerCase()) ||
+      p.uid.toLowerCase().includes(listSearchTerm.toLowerCase());
 
-  // 2. Tính toán chỉ số cắt mảng
+    return matchCategory && matchSearch;
+  });
+
+  // Phân trang
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-
-  // 3. Cắt lấy danh sách sản phẩm cho trang hiện tại
   const currentProducts = filteredProducts.slice(
     indexOfFirstItem,
     indexOfLastItem
   );
-
-  // 4. Tính tổng số trang
   const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
 
-  // Hàm chuyển trang
   const handlePageChange = (pageNumber) => {
     if (pageNumber >= 1 && pageNumber <= totalPages) {
       setCurrentPage(pageNumber);
-      // Cuộn nhẹ lên đầu danh sách sản phẩm cho trải nghiệm tốt hơn
       window.scrollTo({ top: 300, behavior: "smooth" });
     }
   };
@@ -238,6 +241,7 @@ const UserDashboard = ({ onBack }) => {
         </p>
       </div>
 
+      {/* [CẬP NHẬT] Ô Tra cứu: Nhập Mã hoặc Tên */}
       <div
         className="glass-panel p-4 mx-auto text-center mb-5 rounded-pill shadow-lg"
         style={{ maxWidth: "700px" }}
@@ -245,9 +249,10 @@ const UserDashboard = ({ onBack }) => {
         <div className="d-flex gap-2 justify-content-center p-1">
           <input
             className="form-control rounded-pill border-0 ps-4 py-3 bg-light fs-5"
-            placeholder="Nhập mã sản phẩm"
-            value={checkUid}
-            onChange={(e) => setCheckUid(e.target.value)}
+            placeholder="Nhập mã định danh sản phẩm"
+            value={checkInput}
+            onChange={(e) => setCheckInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && verify()}
           />
           <button
             className="btn btn-primary-gradient rounded-pill px-5 fw-bold"
@@ -266,7 +271,7 @@ const UserDashboard = ({ onBack }) => {
       </div>
 
       <div className="mb-4">
-        <div className="d-flex justify-content-between align-items-end mb-4 px-2">
+        <div className="d-flex flex-wrap justify-content-between align-items-end mb-4 px-2 gap-3">
           <div>
             <h4 className="fw-bold text-dark m-0">Sản Phẩm Nổi Bật</h4>
             <span className="text-muted small heading-font">
@@ -274,7 +279,31 @@ const UserDashboard = ({ onBack }) => {
             </span>
           </div>
 
-          <div className="d-flex gap-2">
+          <div className="d-flex flex-wrap gap-2 align-items-center">
+            {/* [MỚI] Thanh tìm kiếm trong danh sách */}
+            <div className="position-relative me-2">
+              <input
+                type="text"
+                className="form-control rounded-pill ps-5 pe-4 bg-white border shadow-sm"
+                placeholder="Tìm nhanh"
+                value={listSearchTerm}
+                onChange={(e) => setListSearchTerm(e.target.value)}
+                style={{ width: "200px" }}
+              />
+              <Search
+                size={18}
+                className="position-absolute top-50 start-0 translate-middle-y ms-3 text-muted"
+              />
+              {listSearchTerm && (
+                <button
+                  className="btn btn-link p-0 position-absolute top-50 end-0 translate-middle-y me-3 text-muted"
+                  onClick={() => setListSearchTerm("")}
+                >
+                  <X size={16} />
+                </button>
+              )}
+            </div>
+
             {CATEGORIES.map((cat) => (
               <button
                 key={cat}
@@ -307,7 +336,7 @@ const UserDashboard = ({ onBack }) => {
                   <motion.div
                     whileHover={{ y: -10, transition: { duration: 0.2 } }}
                     className="glass-panel h-100 border-0 p-3 rounded-4 position-relative card-hover-effect"
-                    onClick={() => verify(p.uid)}
+                    onClick={() => verify(p.uid)} // Khi click vào thẻ thì tìm theo UID cho chính xác
                     style={{ cursor: "pointer" }}
                   >
                     <div className="position-absolute top-0 end-0 m-3 bg-white rounded-circle p-2 shadow-sm z-1">
@@ -331,9 +360,10 @@ const UserDashboard = ({ onBack }) => {
                     <h6 className="fw-bold text-dark text-truncate mb-1 px-1">
                       {p.name}
                     </h6>
-                    <small className="d-block text-muted px-1">
-                      Lô: {p.batch_number}
-                    </small>
+                    <div className="d-flex justify-content-between px-1">
+                      <small className="text-muted">Lô: {p.batch_number}</small>
+                      <small className="text-primary fw-bold">{p.uid}</small>
+                    </div>
                   </motion.div>
                 </motion.div>
               ))
@@ -344,13 +374,12 @@ const UserDashboard = ({ onBack }) => {
                 className="col-12 text-center text-muted py-5"
               >
                 <Package size={48} className="mb-3 opacity-50" />
-                <p>Chưa có dữ liệu sản phẩm.</p>
+                <p>Không tìm thấy sản phẩm nào.</p>
               </motion.div>
             )}
           </AnimatePresence>
         </motion.div>
 
-        {/* [MỚI] Thanh Phân Trang (Nằm dưới danh sách sản phẩm) */}
         {totalPages > 1 && (
           <div className="d-flex justify-content-center align-items-center mt-5 gap-3">
             <button
