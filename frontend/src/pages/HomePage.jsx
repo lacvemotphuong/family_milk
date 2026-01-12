@@ -103,7 +103,7 @@ const HomePage = ({ onStart }) => {
       id: 3,
       title: "Family Milk đạt chuẩn ISO 22000",
       desc: "Hệ thống quản lý của chúng tôi vừa được cấp chứng nhận quốc tế về an toàn thực phẩm.",
-      img: "https://placehold.co/600x400/198754/white?text=Chung+Nhan+ISO",
+      img: "https://placehold.co/600x400/198754/white?text=Chứng+Nhận+ISO",
       date: "08/01/2026",
     },
   ];

@@ -15,9 +15,9 @@ import {
   BarChart as BarIcon,
   PieChart as PieIcon,
   AlertTriangle,
-  CheckCircle, // [MỚI] Icon tích xanh
-  XCircle, // [MỚI] Icon X đỏ
-  Layers, // [MỚI] Icon lớp (Tất cả)
+  CheckCircle,
+  XCircle,
+  Layers,
   FileText,
 } from "lucide-react";
 import { api } from "../services/api";
@@ -35,7 +35,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
-const AdminDashboard = ({ onLogout }) => {
+const AdminDashboard = ({ user, onLogout }) => {
   const [activeTab, setActiveTab] = useState("statistics");
   const [products, setProducts] = useState([]);
   const [history, setHistory] = useState([]);
@@ -45,7 +45,7 @@ const AdminDashboard = ({ onLogout }) => {
   // State tìm kiếm
   const [searchTerm, setSearchTerm] = useState("");
 
-  // [MỚI] State lọc lô hàng (all, safe, warning, expired)
+  // State lọc lô hàng (all, safe, warning, expired)
   const [batchFilter, setBatchFilter] = useState("all");
 
   const [hiddenList, setHiddenList] = useState(
@@ -105,6 +105,7 @@ const AdminDashboard = ({ onLogout }) => {
             category: clean(cols[2]),
             batch_number: clean(cols[3]),
             expiry_date: clean(cols[4]),
+            // Tính unix timestamp cho việc tính toán ngày còn lại
             expiry_date_unix: Math.floor(
               new Date(clean(cols[4])).getTime() / 1000
             ),
@@ -138,16 +139,42 @@ const AdminDashboard = ({ onLogout }) => {
     e.target.value = "";
   };
 
-  // --- BATCH MANAGEMENT LOGIC ---
-  const getDaysRemaining = (expiryStr) => {
-    if (!expiryStr) return 999;
-    const expiry = new Date(expiryStr).getTime();
-    const now = Date.now();
-    return Math.ceil((expiry - now) / (1000 * 60 * 60 * 24));
+  // --- [ĐÃ SỬA] LOGIC TÍNH HẠN SỬ DỤNG (FIX LỖI NaN) ---
+  const getDaysRemaining = (p) => {
+    // 1. Ưu tiên dùng số giây (unix) nếu có -> Chính xác nhất
+    if (p.expiry_unix) {
+      const expiry = p.expiry_unix * 1000; // Đổi sang mili giây
+      const now = Date.now();
+      return Math.ceil((expiry - now) / (1000 * 60 * 60 * 24));
+    }
+
+    // 2. Nếu không có unix, thử tính từ chuỗi ngày (phòng hờ)
+    if (!p.expiry_date) return 0;
+
+    try {
+      // Xử lý định dạng dd/mm/yyyy (Việt Nam)
+      if (p.expiry_date.includes("/")) {
+        const parts = p.expiry_date.split("/");
+        if (parts.length === 3) {
+          // new Date(năm, tháng - 1, ngày)
+          const expiry = new Date(parts[2], parts[1] - 1, parts[0]).getTime();
+          const now = Date.now();
+          return Math.ceil((expiry - now) / (1000 * 60 * 60 * 24));
+        }
+      }
+      // Các định dạng khác (yyyy-mm-dd)
+      const expiry = new Date(p.expiry_date).getTime();
+      if (isNaN(expiry)) return 0; // Nếu vẫn lỗi thì trả về 0
+
+      const now = Date.now();
+      return Math.ceil((expiry - now) / (1000 * 60 * 60 * 24));
+    } catch {
+      return 0; // Trả về 0 nếu lỗi format
+    }
   };
 
-  const getExpiryStatus = (expiryStr) => {
-    const days = getDaysRemaining(expiryStr);
+  const getExpiryStatus = (p) => {
+    const days = getDaysRemaining(p);
     if (days < 0) return { label: "Đã hết hạn", color: "danger", bg: "danger" };
     if (days <= 30)
       return { label: "Sắp hết hạn", color: "warning", bg: "warning" };
@@ -161,26 +188,26 @@ const AdminDashboard = ({ onLogout }) => {
       p.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // [MỚI] Logic lọc sản phẩm theo hạn sử dụng (Tab Batches)
+  // Logic lọc sản phẩm theo hạn sử dụng (Tab Batches)
   const getFilteredBatches = () => {
     let result = [...products];
 
     // Lọc theo nút bấm
     if (batchFilter === "expired") {
-      result = result.filter((p) => getDaysRemaining(p.expiry_date) < 0);
+      result = result.filter((p) => getDaysRemaining(p) < 0);
     } else if (batchFilter === "warning") {
       result = result.filter((p) => {
-        const days = getDaysRemaining(p.expiry_date);
+        const days = getDaysRemaining(p);
         return days >= 0 && days <= 30;
       });
     } else if (batchFilter === "safe") {
-      result = result.filter((p) => getDaysRemaining(p.expiry_date) > 30);
+      result = result.filter((p) => getDaysRemaining(p) > 30);
     }
 
     // Sắp xếp ưu tiên hết hạn lên đầu
     return result.sort((a, b) => {
-      const daysA = getDaysRemaining(a.expiry_date);
-      const daysB = getDaysRemaining(b.expiry_date);
+      const daysA = getDaysRemaining(a);
+      const daysB = getDaysRemaining(b);
       return daysA - daysB;
     });
   };
@@ -235,7 +262,9 @@ const AdminDashboard = ({ onLogout }) => {
           </div>
           <div>
             <h4 className="fw-bold mb-0">Quản Trị Hệ Thống</h4>
-            <p className="text-muted m-0 small">Xin chào, Admin</p>
+            <p className="text-muted m-0 small">
+              Xin chào, {user?.fullname || "Admin"}
+            </p>
           </div>
         </div>
         <button
@@ -384,7 +413,6 @@ const AdminDashboard = ({ onLogout }) => {
 
               <div className="row g-4 mb-4 mt-2">
                 <div className="col-md-5 border-end">
-                  {/* [MỚI] Tiêu đề có nút Nhập Excel */}
                   <div className="d-flex justify-content-between align-items-center mb-3">
                     <h5 className="fw-bold text-primary m-0">
                       <Plus size={20} className="me-1" /> Thêm Sản Phẩm Mới
@@ -625,7 +653,6 @@ const AdminDashboard = ({ onLogout }) => {
             </div>
           )}
 
-          {/* [MỚI] Tab Quản Lý Lô Hàng đã được chia mục */}
           {activeTab === "batches" && (
             <div className="glass-panel p-4 rounded-4 animate-in">
               <h4 className="fw-bold mb-4 text-primary">
@@ -701,8 +728,8 @@ const AdminDashboard = ({ onLogout }) => {
                   <tbody>
                     {batchList.length > 0 ? (
                       batchList.map((p) => {
-                        const status = getExpiryStatus(p.expiry_date);
-                        const days = getDaysRemaining(p.expiry_date);
+                        const status = getExpiryStatus(p);
+                        const days = getDaysRemaining(p);
                         return (
                           <tr
                             key={p.uid}
