@@ -66,10 +66,10 @@ const UserDashboard = ({ onBack }) => {
       if (data.is_valid) {
         setDetail({ ...data, uid: data.uid }); // Đảm bảo dùng UID trả về từ server
         setView("detail");
-        api.recordScan(data.uid, "Web Client", "valid");
+        // Note: Scan recording removed - only available for logged-in users via sidebar
       } else {
         alert("Không tìm thấy sản phẩm nào khớp với thông tin này!");
-        api.recordScan(target, "Web Client", "invalid");
+        // Note: Scan recording removed - only available for logged-in users via sidebar
       }
     } catch (e) {
       alert("Lỗi kết nối");
@@ -278,7 +278,6 @@ const UserDashboard = ({ onBack }) => {
               Danh sách sản phẩm hiện có
             </span>
           </div>
-
           <div className="d-flex flex-wrap gap-2 align-items-center">
             {/* [MỚI] Thanh tìm kiếm trong danh sách */}
             <div className="position-relative me-2">

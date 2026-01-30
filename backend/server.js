@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const bcrypt = require("bcryptjs"); // [MỚI] Import bcryptjs
+const jwt = require("jsonwebtoken"); // [MỚI] Import jsonwebtoken
 const QRCode = require("qrcode"); // Thư viện tạo mã QR
 const connectDB = require("./database");
 const { Product, History, User } = require("./models");
@@ -13,6 +14,26 @@ const { getAnswer } = require("./ai_module");
 
 const app = express();
 const PORT = 8000;
+const JWT_SECRET = "family_milk_secret"; // [MỚI] Khóa bí mật JWT
+
+// [MỚI] Middleware xác thực JWT
+function authMiddleware(req, res, next) {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader) {
+    return res.status(401).json({ message: "Chưa đăng nhập" });
+  }
+
+  const token = authHeader.split(" ")[1];
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = decoded; // { id, role }
+    next();
+  } catch (e) {
+    return res.status(401).json({ message: "Token không hợp lệ" });
+  }
+}
 
 // --- MIDDLEWARE ---
 app.use(cors()); // Cho phép Frontend (React) gọi API
@@ -21,6 +42,23 @@ app.use(express.json()); // Cho phép đọc dữ liệu JSON từ body request
 // --- KHỞI ĐỘNG DỊCH VỤ ---
 connectDB(); // Kết nối MongoDB
 initBlockchain(); // Kết nối Ganache
+
+//  Kiểm tra mật khẩu mạnh
+function validatePassword(password) {
+  if (password.length < 8) {
+    return "Mật khẩu phải có ít nhất 8 ký tự";
+  }
+  if (!/[A-Za-z]/.test(password)) {
+    return "Mật khẩu phải chứa ít nhất 1 chữ cái";
+  }
+  if (!/\d/.test(password)) {
+    return "Mật khẩu phải chứa ít nhất 1 số";
+  }
+  if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
+    return "Mật khẩu phải chứa ít nhất 1 ký tự đặc biệt";
+  }
+  return null;
+}
 
 // --- CÁC API ENDPOINTS ---
 
@@ -146,7 +184,6 @@ app.post("/create_products_bulk", async (req, res) => {
   }
 });
 
-// 3. Xác thực sản phẩm (Dành cho User khi quét mã)
 // 3. Xác thực sản phẩm (Dành cho User khi quét mã hoặc nhập tên)
 app.get("/verify/:uid", async (req, res) => {
   try {
@@ -198,7 +235,7 @@ app.get("/verify/:uid", async (req, res) => {
 });
 
 // 4. Ghi nhận lượt quét (Thống kê)
-app.post("/record_scan", async (req, res) => {
+app.post("/record_scan", authMiddleware, async (req, res) => {
   try {
     const { uid, location, status } = req.body;
 
@@ -214,6 +251,7 @@ app.post("/record_scan", async (req, res) => {
       location: location || "Không xác định",
       time: now.toLocaleString("vi-VN"),
       status: status || "valid",
+      user: req.user.id, // Liên kết với user đang đăng nhập
     });
 
     res.json({ status: "success" });
@@ -232,6 +270,19 @@ app.get("/scan_history", async (req, res) => {
   }
 });
 
+// 5.1. Lấy lịch sử quét của user đang đăng nhập
+app.get("/my_scan_history", authMiddleware, async (req, res) => {
+  try {
+    const data = await History.find({ user: req.user.id })
+      .sort({ timestamp: -1 })
+      .populate('user', 'fullname username') // Populate thông tin user
+      .limit(100);
+    res.json(data);
+  } catch (e) {
+    res.json([]);
+  }
+});
+
 // 6. Hỏi đáp AI
 app.post("/ask_ai", async (req, res) => {
   const { product_name, question } = req.body;
@@ -244,6 +295,14 @@ app.post("/register", async (req, res) => {
   try {
     const { fullname, username, email, password } = req.body;
 
+    // Hàm kiểm tra mật khẩu
+    const passwordError = validatePassword(password);
+    if (passwordError) {
+      return res.json({
+        status: "error",
+        message: passwordError,
+      });
+    } 
     // Check trùng
     const exists = await User.findOne({ username });
     if (exists)
@@ -251,7 +310,7 @@ app.post("/register", async (req, res) => {
         status: "error",
         message: "Tên đăng nhập đã tồn tại!",
       });
-
+   
     // Mã hóa mật khẩu
     const hashedPassword = await bcrypt.hash(password, 10);
 
@@ -275,25 +334,45 @@ app.post("/register", async (req, res) => {
 app.post("/login", async (req, res) => {
   try {
     const { username, password } = req.body;
+
+    // Tìm user theo username
     const user = await User.findOne({ username });
 
-    if (user && (await bcrypt.compare(password, user.password))) {
-      res.json({
-        status: "success",
-        user: {
-          id: user._id,
-          username: user.username,
-          fullname: user.fullname,
-          role: user.role,
-        },
+    // tai khoan hoac mat khau sai
+    if (!user || !(await bcrypt.compare(password, user.password))) {
+      return res.json({
+        status: "error",
+        message: "Sai tài khoản hoặc mật khẩu!",
       });
-    } else {
-      res.json({ status: "error", message: "Sai tài khoản hoặc mật khẩu!" });
     }
+
+    // tao token jwt
+    const token = jwt.sign(
+      {
+        id: user._id,
+        role: user.role,
+      },
+      JWT_SECRET,
+      { expiresIn: "1d" }
+    );
+
+    // tra token về cho client
+    res.json({
+      status: "success",
+      token, 
+      user: {
+        id: user._id,
+        username: user.username,
+        fullname: user.fullname,
+        email: user.email,
+        role: user.role,
+      },
+    });
   } catch (e) {
     res.json({ status: "error", message: "Lỗi Server" });
   }
 });
+
 
 // 9. Lấy danh sách người dùng (Cho Admin)
 app.get("/users", async (req, res) => {
@@ -321,7 +400,66 @@ app.get("/clear_database", async (req, res) => {
   }
 });
 
+// 10. Lấy thông tin user đang đăng nhập
+app.get("/me", authMiddleware, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select("-password");
+    res.json(user);
+  } catch (e) {
+    res.status(500).json({ message: "Lỗi server" });
+  }
+});
+
+// 11. Lịch sử quét của user đang đăng nhập
+app.get("/my_scan_history", authMiddleware, async (req, res) => {
+  try {
+    const history = await History.find({ user_id: req.user.id })
+      .sort({ timestamp: -1 });
+    res.json(history);
+  } catch (e) {
+    res.json([]);
+  }
+});
+
+// 12. Cập nhật thông tin user đang đăng nhập
+app.put("/me", authMiddleware, async (req, res) => {
+  try {
+    const { fullname, email } = req.body;
+
+    // kiểm tra dữ liệu
+    if (!fullname || !email) {
+      return res.status(400).json({
+        status: "error",
+        message: "Thiếu thông tin cập nhật",
+      });
+    }
+
+    // cập nhật
+    const updatedUser = await User.findByIdAndUpdate(
+      req.user.id,
+      {
+        fullname,
+        email,
+      },
+      { new: true, select: "-password" }
+    );
+
+    res.json({
+      status: "success",
+      message: "Cập nhật thành công",
+      user: updatedUser,
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({
+      status: "error",
+      message: "Lỗi server",
+    });
+  }
+});
+
 // Chạy Server
 app.listen(PORT, () => {
   console.log(`🚀 Server Node.js đang chạy tại: http://localhost:${PORT}`);
 });
+

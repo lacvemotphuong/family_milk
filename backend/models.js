@@ -40,6 +40,7 @@ const historySchema = new mongoose.Schema({
   time: String,
   status: { type: String, enum: ['valid', 'invalid'], default: 'valid' }, // [MỚI] Trạng thái
   timestamp: { type: Date, default: Date.now },
+  user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }, // Liên kết với user
 });
 
 // 3. Schema Người dùng (Khách hàng & Admin)
