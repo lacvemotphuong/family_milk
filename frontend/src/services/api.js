@@ -56,29 +56,57 @@ export const api = {
 
   // Ghi lịch sử quét QR
   recordScan: async (uid, location, status = "valid") => {
-    await fetch(`${API_URL}/record_scan`, {
-      method: "POST",
-      headers: getAuthHeaders(),
-      body: JSON.stringify({
-        uid,
-        location,
-        status,
-      }),
-    });
+    try {
+      console.log("Ghi nhận quét được gọi:", { uid, location, status });
+      const res = await fetch(`${API_URL}/record_scan`, {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          uid,
+          location,
+          status,
+        }),
+      });
+      const result = await res.json();
+      console.log("Phản hồi ghi nhận quét:", result);
+      return result;
+    } catch (err) {
+      console.error("Lỗi ghi nhận quét:", err);
+      throw err;
+    }
   },
 
   // Lịch sử quét (Admin)
   getHistory: async () => {
     const res = await fetch(`${API_URL}/scan_history`);
+    if (!res.ok) {
+      console.error("getHistory failed", res.status);
+      return [];
+    }
     return res.json();
   },
 
   // Lịch sử quét của user đang đăng nhập
   getMyHistory: async () => {
-    const res = await fetch(`${API_URL}/my_scan_history`, {
-      headers: getAuthHeaders(),
-    });
-    return res.json();
+    try {
+      console.log("Lấy lịch sử của tôi được gọi, token:", localStorage.getItem("token") ? "có" : "không có");
+      const res = await fetch(`${API_URL}/my_scan_history`, {
+        headers: getAuthHeaders(),
+      });
+      console.log("Trạng thái phản hồi lịch sử của tôi:", res.status);
+      
+      if (!res.ok) {
+        // Nếu chưa đăng nhập hoặc token không hợp lệ, trả về mảng rỗng để không gây lỗi render
+        console.warn("Lịch sử của tôi không thành công", res.status, res.statusText);
+        return [];
+      }
+      const data = await res.json();
+      console.log("Dữ liệu lịch sử của tôi:", data);
+      return data;
+    } catch (err) {
+      console.error("Lỗi lịch sử của tôi:", err);
+      return [];
+    }
   },
 
   /* AI */

@@ -8,8 +8,9 @@ export default function UserProfile({ user, onBack, onLogout, onUpdateProfile, o
   useEffect(() => {
     const fetchActivities = async () => {
       try {
+        console.log("UserProfile: Fetching activities...");
         const data = await api.getMyHistory();
-        console.log("Activities data:", data);
+        console.log("UserProfile: Activities data:", data);
         setActivities(data);
       } catch (error) {
         console.error("Error fetching activities:", error);
@@ -128,29 +129,15 @@ export default function UserProfile({ user, onBack, onLogout, onUpdateProfile, o
                 </ul>
                 <button 
                   className="btn btn-outline-primary btn-sm"
-                  onClick={() => {
-                    console.log("onViewHistory called");
-                    onViewHistory();
-                  }}
+                  onClick={onViewHistory}
                 >
                   Xem tất cả lịch sử
                 </button>
               </>
             ) : (
-              <>
-                <p className="text-muted mb-3">
-                  Chưa có dữ liệu hoạt động.
-                </p>
-                <button 
-                  className="btn btn-outline-primary btn-sm"
-                  onClick={() => {
-                    console.log("onViewHistory called");
-                    onViewHistory();
-                  }}
-                >
-                  Xem lịch sử tra cứu
-                </button>
-              </>
+              <p className="text-muted mb-0">
+                Chưa có dữ liệu hoạt động.
+              </p>
             )}
           </div>
         </div>

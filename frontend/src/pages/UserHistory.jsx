@@ -6,11 +6,27 @@ export default function UserHistory({ onBack }) {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const token = localStorage.getItem("token");
 
   useEffect(() => {
     const fetchHistory = async () => {
+      if (!token) {
+        setError("Vui lòng đăng nhập để xem lịch sử tra cứu");
+        setLoading(false);
+        return;
+      }
       try {
+        console.log("\u0110ang t\u1ea3i l\u1ecbch s\u1eed...");
         const data = await api.getMyHistory();
+        console.log("Nh\u1eadn \u0111\u01b0\u1ee3c d\u1eef li\u1ec7u l\u1ecbch s\u1eed:", data);
+        
+        if (!data || data.length === 0) {
+          console.log("Kh\u00f4ng c\u00f3 d\u1eef li\u1ec7u l\u1ecbch s\u1eed");
+          setHistory([]);
+          setLoading(false);
+          return;
+        }
+        
         // Fetch product names for each history item
         const historyWithProducts = await Promise.all(
           data.map(async (item) => {
@@ -30,8 +46,10 @@ export default function UserHistory({ onBack }) {
             }
           })
         );
+        console.log("L\u1ecbch s\u1eed k\u00e8m s\u1ea3n ph\u1ea9m:", historyWithProducts);
         setHistory(historyWithProducts);
       } catch (err) {
+        console.error("Error fetching history:", err);
         setError("Không thể tải lịch sử tra cứu");
       } finally {
         setLoading(false);
@@ -89,7 +107,7 @@ export default function UserHistory({ onBack }) {
         {loading ? (
           <div className="text-center py-5">
             <div className="spinner-border text-primary" role="status">
-              <span className="visually-hidden">Loading...</span>
+            <span className="visually-hidden">\u0110ang t\u1ea3i...</span>
             </div>
             <p className="mt-2 text-muted">Đang tải lịch sử...</p>
           </div>
@@ -97,6 +115,7 @@ export default function UserHistory({ onBack }) {
           <div className="alert alert-danger">
             <strong>Lỗi:</strong> {error}
           </div>
+          
         ) : history.length === 0 ? (
           <div className="text-center py-5">
             <Package size={48} className="text-muted mb-3" />

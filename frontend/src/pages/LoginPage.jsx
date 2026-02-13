@@ -1,13 +1,23 @@
 import React, { useState } from 'react';
-import { User, Lock, ArrowRight, ArrowLeft } from 'lucide-react';
+import { User, Lock, ArrowRight, ArrowLeft, Loader } from 'lucide-react';
 
 const LoginPage = ({ onLogin, onSwitchToRegister, onBack }) => {
     const [role, setRole] = useState('user'); // 'user' or 'admin'
     const [formData, setFormData] = useState({ username: '', password: '' });
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState('');
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        onLogin(role, formData);
+        setError('');
+        setIsLoading(true);
+        try {
+            await onLogin(role, formData);
+        } catch (err) {
+            setError(err.message || 'Đăng nhập thất bại');
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     return (
@@ -64,8 +74,27 @@ const LoginPage = ({ onLogin, onSwitchToRegister, onBack }) => {
                         <Lock size={18} className="position-absolute top-50 end-0 translate-middle-y me-3 text-muted" />
                     </div>
 
-                    <button className="btn btn-primary-gradient w-100 py-3 rounded-pill fw-bold fs-6 shadow-md mb-4">
-                        ĐĂNG NHẬP <ArrowRight size={18} className="ms-2" />
+                    {error && (
+                        <div className="alert alert-danger mb-3 rounded-4" role="alert">
+                            {error}
+                        </div>
+                    )}
+
+                    <button 
+                        type="submit"
+                        disabled={isLoading}
+                        className="btn btn-primary-gradient w-100 py-3 rounded-pill fw-bold fs-6 shadow-md mb-4 d-flex align-items-center justify-content-center gap-2"
+                    >
+                        {isLoading ? (
+                            <>
+                                <Loader size={18} className="spinner-border" style={{animation: 'spin 1s linear infinite'}} />
+                                Đang đăng nhập...
+                            </>
+                        ) : (
+                            <>
+                                ĐĂNG NHẬP <ArrowRight size={18} className="ms-2" />
+                            </>
+                        )}
                     </button>
                 </form>
 

@@ -3,6 +3,7 @@ const cors = require("cors");
 const bcrypt = require("bcryptjs"); // [MỚI] Import bcryptjs
 const jwt = require("jsonwebtoken"); // [MỚI] Import jsonwebtoken
 const QRCode = require("qrcode"); // Thư viện tạo mã QR
+const mongoose = require("mongoose");
 const connectDB = require("./database");
 const { Product, History, User } = require("./models");
 const {
@@ -238,6 +239,8 @@ app.get("/verify/:uid", async (req, res) => {
 app.post("/record_scan", authMiddleware, async (req, res) => {
   try {
     const { uid, location, status } = req.body;
+    const userId = new mongoose.Types.ObjectId(req.user.id);
+    console.log("Ghi nhận quét được gọi:", { uid, location, status, userId: req.user.id });
 
     // Chỉ tăng đếm nếu hợp lệ
     if (status !== "invalid") {
@@ -246,17 +249,21 @@ app.post("/record_scan", authMiddleware, async (req, res) => {
 
     // Lưu lịch sử chi tiết (cả đúng và sai)
     const now = new Date();
-    await History.create({
+    const historyData = {
       uid: uid,
       location: location || "Không xác định",
       time: now.toLocaleString("vi-VN"),
       status: status || "valid",
-      user: req.user.id, // Liên kết với user đang đăng nhập
-    });
+      user: userId, // Liên kết với user đang đăng nhập (as ObjectId)
+      timestamp: now,
+    };
+    const savedHistory = await History.create(historyData);
+    console.log("Lịch sử được lưu:", savedHistory);
 
     res.json({ status: "success" });
   } catch (e) {
-    res.json({ status: "error" });
+    console.error("Lỗi ghi nhận quét:", e);
+    res.json({ status: "error", message: e.message });
   }
 });
 
@@ -273,12 +280,16 @@ app.get("/scan_history", async (req, res) => {
 // 5.1. Lấy lịch sử quét của user đang đăng nhập
 app.get("/my_scan_history", authMiddleware, async (req, res) => {
   try {
-    const data = await History.find({ user: req.user.id })
+    const userId = new mongoose.Types.ObjectId(req.user.id);
+    console.log("Lấy lịch sử của người dùng:", req.user.id, "(ObjectId:", userId, ")");
+    const data = await History.find({ user: userId })
       .sort({ timestamp: -1 })
-      .populate('user', 'fullname username') // Populate thông tin user
+      .populate('user', 'fullname username') // Lấy thông tin user
       .limit(100);
+    console.log("Tìm thấy lịch sử:", data.length, "bản ghi");
     res.json(data);
   } catch (e) {
+    console.error("Lỗi lấy lịch sử:", e);
     res.json([]);
   }
 });
@@ -410,18 +421,7 @@ app.get("/me", authMiddleware, async (req, res) => {
   }
 });
 
-// 11. Lịch sử quét của user đang đăng nhập
-app.get("/my_scan_history", authMiddleware, async (req, res) => {
-  try {
-    const history = await History.find({ user_id: req.user.id })
-      .sort({ timestamp: -1 });
-    res.json(history);
-  } catch (e) {
-    res.json([]);
-  }
-});
-
-// 12. Cập nhật thông tin user đang đăng nhập
+// 11. Cập nhật thông tin user đang đăng nhập
 app.put("/me", authMiddleware, async (req, res) => {
   try {
     const { fullname, email } = req.body;

@@ -19,40 +19,48 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState(null); // ✅ user info
   const [openSidebar, setOpenSidebar] = useState(false); // ✅ sidebar state
 
-  // ================= LOGIN =================
+  // LOGIN 
 const handleLogin = async (role, data) => {
-  if (role === "admin") {
-    if (data.username === "admin" && data.password === "123") {
-      const fakeAdmin = {
-        username: "admin",
-        fullname: "Administrator",
-        role: "admin"
-      };
+  try {
+    if (role === "admin") {
+      // Admin login hardcoded for demo or separate DB logic?
+      // For now let's assume admin is also in DB or keep hardcoded fallback
+      if (data.username === "admin" && data.password === "123") {
+        const fakeAdmin = {
+          username: "admin",
+          fullname: "Administrator",
+          role: "admin"
+        };
 
-      localStorage.setItem("token", "admin-demo-token"); // fake cũng được
-      setUserRole("admin");
-      setCurrentUser(fakeAdmin);
-      setPage("admin-dashboard");
-      return;
+        localStorage.setItem("token", "admin-demo-token"); // fake cũng được
+        setUserRole("admin");
+        setCurrentUser(fakeAdmin);
+        setPage("admin-dashboard");
+        return;
+      }
+
+      throw new Error("Sai thông tin admin!");
     }
 
-    alert("Sai thông tin admin!");
-    return;
-  }
-
-  // ===== USER LOGIN =====
-  const res = await api.login(data);
-  if (res.status === "success") {
-    localStorage.setItem("token", res.token);
-    setUserRole(res.user.role);
-    setCurrentUser(res.user);
-    setPage("user-dashboard");
-  } else {
-    alert(res.message);
+    // USER LOGIN 
+    const res = await api.login(data);
+    console.log("Login response:", res); // Debug log
+    
+    if (res.status === "success") {
+      localStorage.setItem("token", res.token);
+      setUserRole(res.user.role || "user");
+      setCurrentUser(res.user);
+      setPage("user-dashboard");
+    } else {
+      throw new Error(res.message || "Đăng nhập thất bại");
+    }
+  } catch (err) {
+    console.error("Login error:", err);
+    throw err; // Throw để LoginPage có thể catch và hiển thị
   }
 };
 
-  // ================= REGISTER =================
+  // REGISTER 
   const handleRegister = async (data) => {
     const res = await api.register(data);
     if (res.status === "success") {
@@ -63,7 +71,7 @@ const handleLogin = async (role, data) => {
     }
   };
 
-  // ================= LOGOUT =================
+  //LOGOUT 
   const handleLogout = () => {
     localStorage.removeItem("token");
     setUserRole(null);
@@ -73,15 +81,10 @@ const handleLogin = async (role, data) => {
   };
 
   return (
-    /**
-     * NOTE:
-     * ❌ ĐÃ LOẠI BỎ `font-sans`
-     * 👉 Giữ nguyên font Bootstrap mặc định
-     * 👉 Fix lỗi font "Đăng nhập / Tra cứu" khác ban đầu
-     */
+
     <div className="min-vh-100 d-flex flex-column position-relative overflow-hidden">
 
-      {/* ================= NAVBAR ================= */}
+      {/* NAVBAR  */}
       {(page === "home" || page === "user-dashboard") && (
         <nav className="navbar sticky-top px-4 mt-3 rounded-pill mx-4 glass-panel">
           <div className="container-fluid d-flex justify-content-between align-items-center">
@@ -138,7 +141,7 @@ const handleLogin = async (role, data) => {
         </nav>
       )}
 
-      {/* ================= SIDEBAR (MỚI) ================= */}
+      {/* SIDEBAR */}
       <UserSidebar
         open={openSidebar}
         user={currentUser} 
@@ -155,7 +158,7 @@ const handleLogin = async (role, data) => {
         onLogout={handleLogout}
       />
 
-      {/* ================= CONTENT ================= */}
+       {/* Main Content with Animation */}
       <div className="flex-grow-1">
         <AnimatePresence mode="wait">
 
@@ -207,7 +210,7 @@ const handleLogin = async (role, data) => {
 
           {page === "user-dashboard" && (
             <motion.div key="user" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-              <UserDashboard />
+              <UserDashboard onBack={() => setPage("home")} />
             </motion.div>
           )}
 

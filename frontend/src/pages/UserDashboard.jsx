@@ -63,13 +63,33 @@ const UserDashboard = ({ onBack }) => {
 
     try {
       const data = await api.verifyProduct(target);
+      const token = localStorage.getItem("token");
+      
       if (data.is_valid) {
         setDetail({ ...data, uid: data.uid }); // Đảm bảo dùng UID trả về từ server
         setView("detail");
-        // Note: Scan recording removed - only available for logged-in users via sidebar
+        
+        // Record scan history if user is logged in
+        if (token) {
+          try {
+            await api.recordScan(data.uid, "Web Lookup", "valid");
+            console.log("Đã ghi lịch sử quét thành công");
+          } catch (err) {
+            console.error("Lỗi ghi lịch sử quét:", err);
+            // Don't alert - not critical if recording fails
+          }
+        }
       } else {
         alert("Không tìm thấy sản phẩm nào khớp với thông tin này!");
-        // Note: Scan recording removed - only available for logged-in users via sidebar
+        
+        // Record failed scan attempt if user is logged in
+        if (token) {
+          try {
+            await api.recordScan(target, "Web Lookup", "invalid");
+          } catch (err) {
+            console.error("Lỗi ghi lịch sử quét không hợp lệ:", err);
+          }
+        }
       }
     } catch (e) {
       alert("Lỗi kết nối");

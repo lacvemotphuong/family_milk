@@ -12,47 +12,7 @@ import {
   User,
 } from "lucide-react";
 
-// --- API MOCK (Để chạy độc lập) ---
-const API_URL = "http://127.0.0.1:8000";
-const api = {
-  getProducts: async () => {
-    try {
-      const res = await fetch(`${API_URL}/products`);
-      return await res.json();
-    } catch (e) {
-      return [];
-    }
-  },
-  verifyProduct: async (uid) => {
-    try {
-      const res = await fetch(`${API_URL}/verify/${uid}`);
-      return await res.json();
-    } catch (e) {
-      return { is_valid: false };
-    }
-  },
-  recordScan: async (uid, location) => {
-    try {
-      await fetch(`${API_URL}/record_scan`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ uid, location }),
-      });
-    } catch (e) {}
-  },
-  askAI: async (productName, question) => {
-    try {
-      const res = await fetch(`${API_URL}/ask_ai`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ product_name: productName, question }),
-      });
-      return await res.json();
-    } catch (e) {
-      return { answer: "Lỗi kết nối AI" };
-    }
-  },
-};
+import { api } from "../services/api";
 
 // --- COMPONENTS CON ---
 
@@ -313,7 +273,13 @@ export default function UserPage({ onBack }) {
       if (data.is_valid) {
         setDetailData({ ...data, uid: target });
         setView("detail");
-        api.recordScan(target, "Web Client");
+        // Ghi lịch sử quét
+        try {
+          await api.recordScan(target, "Web Client");
+          console.log("Lịch sử quét đã được lưu");
+        } catch (scanErr) {
+          console.error("Lỗi khi ghi lịch sử quét:", scanErr);
+        }
       } else {
         alert("⚠️ Không tìm thấy sản phẩm! Vui lòng kiểm tra lại mã.");
       }
